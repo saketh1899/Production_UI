@@ -1,0 +1,52 @@
+@{
+    ViewData["Title"] = "Production Dashboard";
+}
+
+<link rel="stylesheet" href="~/css/dashboard.css" asp-append-version="true" />
+
+<div class="dashboard-container"
+     data-poll-interval-ms="@ViewBag.PollIntervalMs"
+     data-rack-count="@ViewBag.RackCount"
+     data-slots-per-rack="@ViewBag.SlotsPerRack">
+    <header class="dashboard-toolbar">
+        <div class="toolbar-title">Production Station Dashboard</div>
+
+        <div class="toolbar-divider" aria-hidden="true"></div>
+
+        <label class="toolbar-label" for="serverIpInput" title="Each comma-separated entry is one server">Servers</label>
+        <input type="text"
+               id="serverIpInput"
+               class="form-control toolbar-input"
+               title="One server per entry, separated by commas. Example: 10.0.0.1, 10.0.0.2, 10.0.0.3"
+               placeholder="Server1, Server2, Server3 (e.g. localhost, localhost, localhost)"
+               value="localhost"
+               autocomplete="off" />
+
+        <div class="toolbar-actions">
+            <button type="button" id="connectBtn" class="btn btn-primary btn-sm toolbar-btn">Connect</button>
+            <button type="button" id="disconnectBtn" class="btn btn-outline-light btn-sm toolbar-btn" disabled>Disconnect</button>
+        </div>
+
+        <div class="toolbar-divider" aria-hidden="true"></div>
+
+        <div id="connectionStatus" class="connection-status"></div>
+
+        <div class="toolbar-legend" aria-label="Status legend">
+            <span class="legend-item"><span class="legend-dot status-passed"></span>Passed</span>
+            <span class="legend-item"><span class="legend-dot status-running"></span>Running</span>
+            <span class="legend-item"><span class="legend-dot status-failed"></span>Failed</span>
+            <span class="legend-item"><span class="legend-dot status-aborted"></span>Aborted</span>
+            <span class="legend-item"><span class="legend-dot status-waiting"></span>Waiting</span>
+        </div>
+    </header>
+
+    <div id="stationGrid" class="station-grid-container">
+        <div class="empty-state">
+            <p>Enter one server address per comma-separated entry, then click <strong>Connect</strong>.</p>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/dashboard.js" asp-append-version="true"></script>
+}
