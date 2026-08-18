@@ -158,6 +158,7 @@
 .station-grid-container {
     padding: 0.75rem 1rem 1.25rem;
     min-height: calc(100vh - 52px);
+    background: linear-gradient(180deg, #dfe3e8 0%, #e9ecef 40%, #eef1f5 100%);
 }
 
 .station-grid {
@@ -177,10 +178,13 @@
 
 /* ── Server sections ── */
 .server-section {
-    background: #fff;
-    border-radius: 10px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-    margin-bottom: 0.85rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%);
+    border: 1px solid #cbd3dc;
+    border-radius: 12px;
+    box-shadow:
+        0 2px 8px rgba(26, 35, 50, 0.08),
+        0 8px 24px rgba(26, 35, 50, 0.04);
+    margin-bottom: 1rem;
     overflow: hidden;
 }
 
@@ -193,59 +197,81 @@
     font-weight: 700;
     color: #fff;
     margin: 0;
-    padding: 0.45rem 0.85rem;
-    background: linear-gradient(90deg, #1a2332, #2c3e50);
-    letter-spacing: 0.02em;
+    padding: 0.5rem 0.9rem;
+    background: linear-gradient(90deg, #1a2332 0%, #2d4059 60%, #1a2332 100%);
+    letter-spacing: 0.03em;
+    border-bottom: 2px solid #ffc107;
 }
 
 .server-section-count {
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.65);
+    color: rgba(255, 255, 255, 0.7);
     margin-left: 0.25rem;
-}
-
-.server-section .rack-layout,
-.server-section .station-grid {
-    padding: 0.65rem 0.75rem 0.75rem;
 }
 
 /* ── Rack layout (physical fixture arrangement) ── */
 .rack-layout {
     display: grid;
-    grid-template-columns: repeat(var(--rack-count, 6), minmax(140px, 1fr));
-    gap: var(--grid-gap, 10px);
-    padding: 0.65rem 0.75rem 0.75rem;
+    grid-template-columns: repeat(var(--rack-count, 6), minmax(148px, 1fr));
+    gap: calc(var(--grid-gap, 10px) + 4px);
+    padding: 0.85rem 0.9rem 1rem;
+    background: linear-gradient(145deg, #e2e6ea 0%, #eceff3 100%);
+    border-radius: 0 0 10px 10px;
 }
 
 .rack-column {
-    border: 2px solid #495057;
-    border-radius: 8px;
-    background: #f1f3f5;
+    border: 1px solid #5c6670;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #ffffff 0%, #f4f6f8 100%);
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    box-shadow:
+        0 4px 14px rgba(26, 35, 50, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    transition: box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.rack-column:hover {
+    box-shadow:
+        0 6px 18px rgba(26, 35, 50, 0.16),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    transform: translateY(-1px);
 }
 
 .rack-header {
     text-align: center;
-    font-size: 0.82rem;
+    font-size: 0.84rem;
     font-weight: 700;
-    padding: 0.45rem 0.5rem;
-    background: #343a40;
+    padding: 0.5rem 0.55rem;
+    background: linear-gradient(135deg, #1a2332 0%, #2d4059 50%, #1a2332 100%);
     color: #fff;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border-bottom: 2px solid #ffc107;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .rack-slots {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 8px;
+    gap: 9px;
+    padding: 10px 9px 11px;
     flex: 1;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.6) 0%, transparent 100%),
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 11px,
+            rgba(0, 0, 0, 0.025) 11px,
+            rgba(0, 0, 0, 0.025) 12px
+        );
 }
 
 .rack-slot {
     flex: 1;
+    position: relative;
 }
 
 .rack-slot .station-card {
@@ -254,9 +280,10 @@
 
 .rack-slot-empty {
     min-height: var(--card-min-height, 78px);
-    border: 1px dashed #ced4da;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.65);
+    border: 1px dashed #b0b8c1;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.75) 0%, rgba(241, 243, 245, 0.9) 100%);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .rack-overflow {
@@ -296,7 +323,7 @@
 .station-card {
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    justify-content: stretch;
     min-height: var(--card-min-height, 72px);
     padding: 0.55rem 0.6rem 0.5rem 0.7rem;
     background: #fff;
@@ -306,6 +333,113 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
     transition: box-shadow 0.15s ease, transform 0.12s ease;
     cursor: default;
+}
+
+.station-body {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0.35rem;
+    height: 100%;
+    min-height: 100%;
+}
+
+.station-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.pass-wait-panel {
+    flex-shrink: 0;
+    width: 3.1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    border-left: 2px dashed rgba(30, 126, 52, 0.35);
+    padding-left: 0.4rem;
+    margin-left: 0.2rem;
+    background: linear-gradient(90deg, transparent 0%, rgba(40, 167, 69, 0.06) 100%);
+    border-radius: 0 4px 4px 0;
+}
+
+.pass-flag {
+    position: relative;
+    width: 1.35rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    animation: flagRaise 0.45s ease-out;
+}
+
+.pass-flag-pole {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 2px;
+    height: 100%;
+    background: linear-gradient(180deg, #868e96 0%, #495057 100%);
+    border-radius: 1px;
+}
+
+.pass-flag-banner {
+    position: absolute;
+    left: 3px;
+    top: 2px;
+    width: 14px;
+    height: 9px;
+    background: linear-gradient(135deg, #ff6b6b 0%, #dc3545 100%);
+    border-radius: 0 2px 2px 0;
+    box-shadow: 0 1px 3px rgba(220, 53, 69, 0.35);
+    transform-origin: left center;
+    animation: flagWave 2.5s ease-in-out infinite;
+}
+
+@keyframes flagRaise {
+    from {
+        opacity: 0;
+        transform: translateY(6px) scale(0.85);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes flagWave {
+    0%, 100% { transform: rotate(-2deg); }
+    50% { transform: rotate(4deg); }
+}
+
+.pass-wait-timer {
+    font-size: 0.8rem;
+    font-weight: 800;
+    font-family: Consolas, 'Courier New', monospace;
+    color: #155724;
+    letter-spacing: 0.02em;
+}
+
+.pass-wait-label {
+    font-size: 0.48rem;
+    font-weight: 700;
+    color: #495057;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    text-align: center;
+    line-height: 1.1;
+}
+
+.station-card.has-pass-wait {
+    padding-right: 0.4rem;
+}
+
+.station-card.status-passed.has-pass-wait {
+    background: linear-gradient(135deg, #d4edda 0%, #e2f4e6 50%, #f0faf3 100%);
 }
 
 .station-card:hover {

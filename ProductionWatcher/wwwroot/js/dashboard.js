@@ -9,6 +9,119 @@
     let currentServerIps = [];
     let isPolling = false;
     let consecutiveFailures = 0;
+    const passWaitState = new Map();
+    let passWaitTimerInterval = null;
+    const lastStationStatus = new Map();
+
+    function formatElapsedDuration(elapsedMs) {
+        const totalSeconds = Math.floor(elapsedMs / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+
+        if (hours > 0) {
+            return hours + ':' + String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+        }
+        return String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+    }
+
+    function startPassWaitClock() {
+        if (passWaitTimerInterval) {
+            return;
+        }
+        passWaitTimerInterval = setInterval(updatePassWaitDisplays, 1000);
+    }
+
+    function stopPassWaitClock() {
+        if (passWaitTimerInterval) {
+            clearInterval(passWaitTimerInterval);
+            passWaitTimerInterval = null;
+        }
+    }
+
+    function updatePassWaitDisplays() {
+        passWaitState.forEach(function (state, key) {
+            const $card = findStationCard(key);
+            if (!$card.length) {
+                return;
+            }
+            const elapsed = Date.now() - state.passedAt;
+            $card.find('.pass-wait-timer').text(formatElapsedDuration(elapsed));
+        });
+    }
+
+    function clearPassWaitState() {
+        passWaitState.clear();
+        lastStationStatus.clear();
+        stopPassWaitClock();
+    }
+
+    function processPassWaitTracker(key, rawStation, previousStatusClass) {
+        const station = normalizeStation(rawStation);
+
+        if (station.statusCssClass === 'status-passed') {
+            let state = passWaitState.get(key);
+            const passCount = station.passedProcessCount;
+            const isNewPass = !state
+                || previousStatusClass !== 'status-passed'
+                || (passCount > 0 && state.passFlag !== passCount);
+
+            if (isNewPass) {
+                passWaitState.set(key, {
+                    passedAt: Date.now(),
+                    passFlag: passCount > 0 ? passCount : (state ? state.passFlag + 1 : 1),
+                    lastSerial: station.serialNumber
+                });
+            }
+
+            startPassWaitClock();
+            return;
+        }
+
+        if (station.statusCssClass === 'status-running' || station.statusCssClass === 'status-waiting') {
+            passWaitState.delete(key);
+        } else if (station.statusCssClass !== 'status-passed') {
+            passWaitState.delete(key);
+        }
+
+        if (passWaitState.size === 0) {
+            stopPassWaitClock();
+        }
+
+        lastStationStatus.set(key, station.statusCssClass);
+    }
+
+    function buildPassWaitPanelHtml(state) {
+        const elapsed = formatElapsedDuration(Date.now() - state.passedAt);
+        return `
+            <div class="pass-wait-panel" title="Waiting for next test to start">
+                <div class="pass-flag" aria-hidden="true">
+                    <span class="pass-flag-pole"></span>
+                    <span class="pass-flag-banner"></span>
+                </div>
+                <div class="pass-wait-timer">${elapsed}</div>
+                <div class="pass-wait-label">Next test</div>
+            </div>`;
+    }
+
+    function syncPassWaitPanel($card, key, station) {
+        const state = passWaitState.get(key);
+        const $panel = $card.find('.pass-wait-panel');
+        const shouldShow = station.statusCssClass === 'status-passed' && state;
+
+        if (!shouldShow) {
+            $card.removeClass('has-pass-wait');
+            $panel.remove();
+            return;
+        }
+
+        $card.addClass('has-pass-wait');
+        if ($panel.length === 0) {
+            $card.find('.station-body').append(buildPassWaitPanelHtml(state));
+        } else {
+            $panel.find('.pass-wait-timer').text(formatElapsedDuration(Date.now() - state.passedAt));
+        }
+    }
 
     const $serverIpInput = $('#serverIpInput');
     const $connectBtn = $('#connectBtn');
@@ -41,7 +154,8 @@
             serverIp: getApiField(station, 'server_ip', 'serverIp', ''),
             statusLabel: getApiField(station, 'status_label', 'statusLabel', 'Unknown'),
             statusCssClass: getApiField(station, 'status_css_class', 'statusCssClass', 'status-unknown'),
-            serialNumber: serialNumber
+            serialNumber: serialNumber,
+            passedProcessCount: parseInt(getApiField(station, 'passed_process_count', 'passedProcessCount', 0), 10) || 0
         };
     }
 
@@ -72,12 +186,23 @@
     function buildStationCard(rawStation) {
         const station = normalizeStation(rawStation);
         const cardKey = station.serverIp + '-' + station.stationId;
+        const state = passWaitState.get(cardKey);
+        const passWaitHtml = station.statusCssClass === 'status-passed' && state
+            ? buildPassWaitPanelHtml(state)
+            : '';
+        const hasPassWait = passWaitHtml ? ' has-pass-wait' : '';
+
         return `
-            <div class="station-card ${station.statusCssClass}" data-station-key="${escapeHtml(cardKey)}" title="${escapeHtml(station.stationName)}">
-                <div class="station-name">${escapeHtml(station.stationName)}</div>
-                <div class="station-meta">
-                    <span class="status-badge">${escapeHtml(station.statusLabel)}</span>
-                    ${station.serialNumber ? `<span class="station-serial">${escapeHtml(station.serialNumber)}</span>` : ''}
+            <div class="station-card ${station.statusCssClass}${hasPassWait}" data-station-key="${escapeHtml(cardKey)}" title="${escapeHtml(station.stationName)}">
+                <div class="station-body">
+                    <div class="station-main">
+                        <div class="station-name">${escapeHtml(station.stationName)}</div>
+                        <div class="station-meta">
+                            <span class="status-badge">${escapeHtml(station.statusLabel)}</span>
+                            ${station.serialNumber ? `<span class="station-serial">${escapeHtml(station.serialNumber)}</span>` : ''}
+                        </div>
+                    </div>
+                    ${passWaitHtml}
                 </div>
             </div>`;
     }
@@ -270,7 +395,10 @@
 
     function patchStationCard($card, rawStation) {
         const station = normalizeStation(rawStation);
+        const key = station.serverIp + '-' + station.stationId;
         const currentStatus = STATUS_CLASSES.find(function (cls) { return $card.hasClass(cls); });
+
+        processPassWaitTracker(key, rawStation, currentStatus);
 
         if (currentStatus !== station.statusCssClass) {
             STATUS_CLASSES.forEach(function (cls) { $card.removeClass(cls); });
@@ -303,6 +431,21 @@
         } else if ($serial.length) {
             $serial.remove();
         }
+
+        syncPassWaitPanel($card, key, station);
+    }
+
+    function applyPassWaitToStations(stations) {
+        stations.forEach(function (rawStation) {
+            const key = stationCardKey(rawStation);
+            const previousStatus = lastStationStatus.get(key) || null;
+            processPassWaitTracker(key, rawStation, previousStatus);
+
+            const $card = findStationCard(key);
+            if ($card.length) {
+                syncPassWaitPanel($card, key, normalizeStation(rawStation));
+            }
+        });
     }
 
     function renderStationsFull(stations, serverIps) {
@@ -342,6 +485,8 @@
             maxSectionSize = Math.max.apply(null, Array.from(groups.values()).map(function (s) { return s.length; }));
         }
         applyAdaptiveLayout(stations.length, maxSectionSize);
+        applyPassWaitToStations(stations);
+        updatePassWaitDisplays();
     }
 
     function updateStations(stations, serverIps) {
@@ -369,6 +514,7 @@
                 patchStationCard($card, rawStation);
             }
         });
+        updatePassWaitDisplays();
     }
 
     function fetchStations() {
@@ -465,6 +611,7 @@
 
     function disconnect() {
         stopPolling();
+        clearPassWaitState();
         currentServerIps = [];
         $connectBtn.prop('disabled', false);
         $disconnectBtn.prop('disabled', true);
@@ -489,5 +636,8 @@
     });
 
     $(window).on('resize', scheduleLayoutRefresh);
-    $(window).on('beforeunload', stopPolling);
+    $(window).on('beforeunload', function () {
+        stopPolling();
+        stopPassWaitClock();
+    });
 })();
