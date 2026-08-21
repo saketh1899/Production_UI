@@ -12,6 +12,52 @@
     const passWaitState = new Map();
     let passWaitTimerInterval = null;
     const lastStationStatus = new Map();
+    const WAIT_TRACKED_STATUSES = ['status-passed', 'status-aborted', 'status-failed'];
+    const STATUS_CLASSES = ['status-passed', 'status-running', 'status-waiting', 'status-failed', 'status-aborted', 'status-unknown'];
+    const configuredFlagDelayMin = parseInt($('.dashboard-container').data('flag-pending-minutes'), 10);
+    const FLAG_PENDING_DELAY_MS = (Number.isFinite(configuredFlagDelayMin) && configuredFlagDelayMin >= 0
+        ? configuredFlagDelayMin
+        : 5) * 60 * 1000;
+
+    function isWaitTrackedStatus(statusClass) {
+        return WAIT_TRACKED_STATUSES.indexOf(statusClass) >= 0;
+    }
+
+    function getWaitElapsedMs(state) {
+        return Date.now() - state.startedAt;
+    }
+
+    function ensureFlagRaised(state) {
+        if (isFlagRaised(state) && !state.flagRaised) {
+            state.flagRaised = true;
+            state.flagRaisedAt = Date.now();
+        }
+    }
+
+    function getPendingElapsedMs(state) {
+        if (!state.flagRaisedAt) {
+            return 0;
+        }
+        return Date.now() - state.flagRaisedAt;
+    }
+
+    function isFlagRaised(state) {
+        return getWaitElapsedMs(state) >= FLAG_PENDING_DELAY_MS;
+    }
+
+    function shouldShowPassWaitPanel(station, state) {
+        return isWaitTrackedStatus(station.statusCssClass) && state && isFlagRaised(state);
+    }
+
+    function getPassWaitPanelVariant(statusClass) {
+        if (statusClass === 'status-failed') {
+            return 'pass-wait-panel--failed';
+        }
+        if (statusClass === 'status-aborted') {
+            return 'pass-wait-panel--aborted';
+        }
+        return 'pass-wait-panel--passed';
+    }
 
     function formatElapsedDuration(elapsedMs) {
         const totalSeconds = Math.floor(elapsedMs / 1000);
@@ -45,8 +91,17 @@
             if (!$card.length) {
                 return;
             }
-            const elapsed = Date.now() - state.passedAt;
-            $card.find('.pass-wait-timer').text(formatElapsedDuration(elapsed));
+
+            const statusClass = STATUS_CLASSES.find(function (cls) { return $card.hasClass(cls); }) || 'status-unknown';
+            const station = { statusCssClass: statusClass };
+
+            ensureFlagRaised(state);
+
+            syncPassWaitPanel($card, key, station);
+
+            if (shouldShowPassWaitPanel(station, state)) {
+                $card.find('.pass-wait-timer').text(formatElapsedDuration(getPendingElapsedMs(state)));
+            }
         });
     }
 
@@ -58,29 +113,36 @@
 
     function processPassWaitTracker(key, rawStation, previousStatusClass) {
         const station = normalizeStation(rawStation);
+        const status = station.statusCssClass;
 
-        if (station.statusCssClass === 'status-passed') {
-            let state = passWaitState.get(key);
+        if (isWaitTrackedStatus(status)) {
+            const state = passWaitState.get(key);
             const passCount = station.passedProcessCount;
-            const isNewPass = !state
-                || previousStatusClass !== 'status-passed'
-                || (passCount > 0 && state.passFlag !== passCount);
+            const isNewWait = !state
+                || previousStatusClass !== status
+                || (status === 'status-passed' && passCount > 0 && state.passFlag !== passCount);
 
-            if (isNewPass) {
+            if (isNewWait) {
                 passWaitState.set(key, {
-                    passedAt: Date.now(),
-                    passFlag: passCount > 0 ? passCount : (state ? state.passFlag + 1 : 1),
-                    lastSerial: station.serialNumber
+                    startedAt: Date.now(),
+                    flagRaised: false,
+                    flagRaisedAt: null,
+                    passFlag: status === 'status-passed'
+                        ? (passCount > 0 ? passCount : (state ? state.passFlag + 1 : 1))
+                        : 0,
+                    lastSerial: station.serialNumber,
+                    statusClass: status
                 });
             }
 
             startPassWaitClock();
+            lastStationStatus.set(key, status);
             return;
         }
 
-        if (station.statusCssClass === 'status-running' || station.statusCssClass === 'status-waiting') {
+        if (status === 'status-running' || status === 'status-waiting') {
             passWaitState.delete(key);
-        } else if (station.statusCssClass !== 'status-passed') {
+        } else if (!isWaitTrackedStatus(status)) {
             passWaitState.delete(key);
         }
 
@@ -88,26 +150,30 @@
             stopPassWaitClock();
         }
 
-        lastStationStatus.set(key, station.statusCssClass);
+        lastStationStatus.set(key, status);
     }
 
-    function buildPassWaitPanelHtml(state) {
-        const elapsed = formatElapsedDuration(Date.now() - state.passedAt);
+    function buildPassWaitPanelHtml(state, statusClass) {
+        ensureFlagRaised(state);
+        const elapsed = formatElapsedDuration(getPendingElapsedMs(state));
+        const panelVariant = getPassWaitPanelVariant(statusClass);
+        const delayMinutes = Math.round(FLAG_PENDING_DELAY_MS / 60000);
         return `
-            <div class="pass-wait-panel" title="Waiting for next test to start">
+            <div class="pass-wait-panel ${panelVariant} pass-wait-panel--raised" title="Pending for next test — flag raised after ${delayMinutes} minute wait">
                 <div class="pass-flag" aria-hidden="true">
                     <span class="pass-flag-pole"></span>
                     <span class="pass-flag-banner"></span>
                 </div>
                 <div class="pass-wait-timer">${elapsed}</div>
-                <div class="pass-wait-label">Next test</div>
+                <div class="pass-wait-label">Pending</div>
             </div>`;
     }
 
     function syncPassWaitPanel($card, key, station) {
         const state = passWaitState.get(key);
         const $panel = $card.find('.pass-wait-panel');
-        const shouldShow = station.statusCssClass === 'status-passed' && state;
+        const shouldShow = shouldShowPassWaitPanel(station, state);
+        const panelVariant = getPassWaitPanelVariant(station.statusCssClass);
 
         if (!shouldShow) {
             $card.removeClass('has-pass-wait');
@@ -115,11 +181,15 @@
             return;
         }
 
+        ensureFlagRaised(state);
         $card.addClass('has-pass-wait');
         if ($panel.length === 0) {
-            $card.find('.station-body').append(buildPassWaitPanelHtml(state));
+            $card.find('.station-body').append(buildPassWaitPanelHtml(state, station.statusCssClass));
         } else {
-            $panel.find('.pass-wait-timer').text(formatElapsedDuration(Date.now() - state.passedAt));
+            $panel
+                .removeClass('pass-wait-panel--passed pass-wait-panel--failed pass-wait-panel--aborted')
+                .addClass(panelVariant);
+            $panel.find('.pass-wait-timer').text(formatElapsedDuration(getPendingElapsedMs(state)));
         }
     }
 
@@ -159,11 +229,119 @@
         };
     }
 
+    function capitalizeWord(word) {
+        if (!word) {
+            return word;
+        }
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }
+
+    function formatSiteName(site) {
+        const beachMatch = site.match(/^(.+?)(BEACH)$/i);
+        if (beachMatch) {
+            return capitalizeWord(beachMatch[1]) + ' ' + capitalizeWord(beachMatch[2]);
+        }
+        return site.split('_').map(capitalizeWord).join(' ');
+    }
+
+    function formatLevelSegment(segment) {
+        const match = segment.match(/^([A-Za-z]+)(\d*)$/);
+        if (match) {
+            return match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase() + match[2];
+        }
+        return capitalizeWord(segment);
+    }
+
+    function formatShortProductName(rawName) {
+        if (!rawName) {
+            return rawName;
+        }
+
+        const parts = rawName.split('_').filter(Boolean);
+        if (parts.length < 2) {
+            return capitalizeWord(rawName);
+        }
+
+        const levelIndex = parts.findIndex(function (part) {
+            return /^L\d+$/i.test(part);
+        });
+
+        if (levelIndex >= 1 && parts[levelIndex + 1] && /^MOBO$/i.test(parts[levelIndex + 1])) {
+            const siteLabel = formatSiteName(parts.slice(0, levelIndex).join('_'));
+            return siteLabel + '_' + formatLevelSegment(parts[levelIndex]) + '_' + capitalizeWord(parts[levelIndex + 1]);
+        }
+
+        return formatSiteName(parts[0]) + '_' + parts.slice(1, 3).map(function (part) {
+            return /^L\d+$/i.test(part) ? formatLevelSegment(part) : capitalizeWord(part);
+        }).join('_');
+    }
+
+    function deriveProductName(stations) {
+        const configured = $('.dashboard-container').data('product-name');
+        if (configured) {
+            return String(configured);
+        }
+
+        const planCounts = {};
+        stations.forEach(function (rawStation) {
+            const plan = getApiField(rawStation, 'current_process_plan', 'currentProcessPlan', '');
+            if (plan) {
+                planCounts[plan] = (planCounts[plan] || 0) + 1;
+            }
+        });
+        const planNames = Object.keys(planCounts);
+        if (planNames.length > 0) {
+            planNames.sort(function (a, b) { return planCounts[b] - planCounts[a]; });
+            return formatShortProductName(planNames[0]);
+        }
+
+        const baseCounts = {};
+        stations.forEach(function (rawStation) {
+            const name = normalizeStation(rawStation).stationName;
+            const match = name.match(/^(.+?)(?:_FIX)?_?\d+$/i);
+            const base = match
+                ? match[1].replace(/_FIX$/i, '').replace(/_+$/, '')
+                : name;
+            if (base) {
+                baseCounts[base] = (baseCounts[base] || 0) + 1;
+            }
+        });
+
+        const baseNames = Object.keys(baseCounts);
+        if (baseNames.length > 0) {
+            baseNames.sort(function (a, b) { return baseCounts[b] - baseCounts[a]; });
+            return formatShortProductName(baseNames[0]);
+        }
+
+        return 'Production';
+    }
+
     function escapeHtml(text) {
         if (!text) return '';
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    function resolveServerLabel(stations, serverLabel) {
+        if (serverLabel) {
+            return serverLabel;
+        }
+        if (stations.length > 0) {
+            return normalizeStation(stations[0]).serverIp || 'Unknown Server';
+        }
+        return 'Unknown Server';
+    }
+
+    function buildProductBannerHtml(stations, serverLabel) {
+        const productName = deriveProductName(stations);
+        const label = resolveServerLabel(stations, serverLabel);
+        return `
+            <div class="rack-product-banner">
+                <span class="rack-product-name">${escapeHtml(productName)}</span>
+                <span class="rack-product-separator" aria-hidden="true">—</span>
+                <span class="rack-product-server">${escapeHtml(label)}</span>
+            </div>`;
     }
 
     function setConnectionStatus(message, type, errors) {
@@ -187,8 +365,8 @@
         const station = normalizeStation(rawStation);
         const cardKey = station.serverIp + '-' + station.stationId;
         const state = passWaitState.get(cardKey);
-        const passWaitHtml = station.statusCssClass === 'status-passed' && state
-            ? buildPassWaitPanelHtml(state)
+        const passWaitHtml = shouldShowPassWaitPanel(station, state)
+            ? buildPassWaitPanelHtml(state, station.statusCssClass)
             : '';
         const hasPassWait = passWaitHtml ? ' has-pass-wait' : '';
 
@@ -272,21 +450,28 @@
         return '<div class="rack-slot">' + buildStationCard(station) + '</div>';
     }
 
-    function buildRackLayoutHtml(stations) {
+    function buildRackLayoutHtml(stations, serverLabel) {
         const layout = buildRackLayout(stations);
         if (!layout.useRackLayout) {
-            return '<div class="station-grid">' + stations.map(buildStationCard).join('') + '</div>';
+            return `
+                <div class="rack-board">
+                    ${buildProductBannerHtml(stations, serverLabel)}
+                    <div class="station-grid">${stations.map(buildStationCard).join('')}</div>
+                </div>`;
         }
 
-        let html = '<div class="rack-layout">';
+        let html = `
+            <div class="rack-board">
+                ${buildProductBannerHtml(stations, serverLabel)}
+                <div class="rack-layout">`;
         layout.racks.forEach(function (slots, rackIndex) {
             html += `
-                <div class="rack-column">
-                    <div class="rack-header">Rack ${rackIndex + 1}</div>
-                    <div class="rack-slots">
-                        ${slots.map(buildRackSlotHtml).join('')}
-                    </div>
-                </div>`;
+                    <div class="rack-column">
+                        <div class="rack-header">Rack ${rackIndex + 1}</div>
+                        <div class="rack-slots">
+                            ${slots.map(buildRackSlotHtml).join('')}
+                        </div>
+                    </div>`;
         });
         html += '</div>';
 
@@ -298,14 +483,14 @@
                 </div>`;
         }
 
+        html += '</div>';
         return html;
     }
 
     function buildServerSectionHtml(serverLabel, serverStations) {
         return `
             <div class="server-section">
-                <h2 class="server-section-title">${escapeHtml(serverLabel)} <span class="server-section-count">(${serverStations.length})</span></h2>
-                ${buildRackLayoutHtml(serverStations)}
+                ${buildRackLayoutHtml(serverStations, serverLabel)}
             </div>`;
     }
 
@@ -377,8 +562,6 @@
         const station = normalizeStation(rawStation);
         return station.serverIp + '-' + station.stationId;
     }
-
-    const STATUS_CLASSES = ['status-passed', 'status-running', 'status-waiting', 'status-failed', 'status-aborted', 'status-unknown'];
 
     function buildStructureSignature(stations, serverIps) {
         const groups = groupStationsByServer(stations);
@@ -475,7 +658,10 @@
                 html += buildServerSectionHtml(serverIp, serverStations);
             });
         } else {
-            html = buildRackLayoutHtml(stations);
+            const serverLabel = stations.length > 0
+                ? normalizeStation(stations[0]).serverIp
+                : (serverIps[0] || '');
+            html = buildRackLayoutHtml(stations, serverLabel);
         }
 
         $stationGrid.html(html);

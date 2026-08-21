@@ -193,30 +193,56 @@
 }
 
 .server-section-title {
-    font-size: 0.82rem;
-    font-weight: 700;
-    color: #fff;
-    margin: 0;
-    padding: 0.5rem 0.9rem;
-    background: linear-gradient(90deg, #1a2332 0%, #2d4059 60%, #1a2332 100%);
-    letter-spacing: 0.03em;
-    border-bottom: 2px solid #ffc107;
-}
-
-.server-section-count {
-    font-weight: 500;
-    color: rgba(255, 255, 255, 0.7);
-    margin-left: 0.25rem;
+    display: none;
 }
 
 /* ── Rack layout (physical fixture arrangement) ── */
+.rack-board {
+    padding: 0.85rem 0.9rem 1rem;
+    background: linear-gradient(145deg, #e2e6ea 0%, #eceff3 100%);
+    border-radius: 0 0 10px 10px;
+}
+
+.rack-product-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.45rem 0.65rem;
+    text-align: center;
+    padding: 0.6rem 1rem;
+    margin-bottom: 0.8rem;
+    background: linear-gradient(135deg, #1a2332 0%, #2d4059 55%, #1a2332 100%);
+    color: #fff;
+    border-radius: 8px;
+    border-bottom: 2px solid #ffc107;
+    box-shadow: 0 2px 8px rgba(26, 35, 50, 0.18);
+}
+
+.rack-product-name {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #ffc107;
+    letter-spacing: 0.03em;
+}
+
+.rack-product-separator {
+    font-size: 0.95rem;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.rack-product-server {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #f8f9fa;
+    letter-spacing: 0.02em;
+}
+
 .rack-layout {
     display: grid;
     grid-template-columns: repeat(var(--rack-count, 6), minmax(148px, 1fr));
     gap: calc(var(--grid-gap, 10px) + 4px);
-    padding: 0.85rem 0.9rem 1rem;
-    background: linear-gradient(145deg, #e2e6ea 0%, #eceff3 100%);
-    border-radius: 0 0 10px 10px;
 }
 
 .rack-column {
@@ -367,6 +393,21 @@
     border-radius: 0 4px 4px 0;
 }
 
+.pass-wait-panel--passed {
+    border-left-color: rgba(30, 126, 52, 0.35);
+    background: linear-gradient(90deg, transparent 0%, rgba(40, 167, 69, 0.06) 100%);
+}
+
+.pass-wait-panel--failed {
+    border-left-color: rgba(220, 53, 69, 0.4);
+    background: linear-gradient(90deg, transparent 0%, rgba(220, 53, 69, 0.08) 100%);
+}
+
+.pass-wait-panel--aborted {
+    border-left-color: rgba(13, 110, 253, 0.4);
+    background: linear-gradient(90deg, transparent 0%, rgba(13, 110, 253, 0.08) 100%);
+}
+
 .pass-flag {
     position: relative;
     width: 1.35rem;
@@ -424,6 +465,14 @@
     letter-spacing: 0.02em;
 }
 
+.pass-wait-panel--failed .pass-wait-timer {
+    color: #721c24;
+}
+
+.pass-wait-panel--aborted .pass-wait-timer {
+    color: #084298;
+}
+
 .pass-wait-label {
     font-size: 0.48rem;
     font-weight: 700;
@@ -440,6 +489,14 @@
 
 .station-card.status-passed.has-pass-wait {
     background: linear-gradient(135deg, #d4edda 0%, #e2f4e6 50%, #f0faf3 100%);
+}
+
+.station-card.status-failed.has-pass-wait {
+    background: linear-gradient(135deg, #f8d7da 0%, #fce4e6 50%, #fdf2f2 100%);
+}
+
+.station-card.status-aborted.has-pass-wait {
+    background: linear-gradient(135deg, #cfe2ff 0%, #dbeafe 50%, #eef4ff 100%);
 }
 
 .station-card:hover {
