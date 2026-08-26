@@ -31,6 +31,9 @@ public class ProcessStationUi
     [JsonPropertyName("current_process_plan")]
     public string CurrentProcessPlan { get; set; } = string.Empty;
 
+    [JsonPropertyName("product_name")]
+    public string ProductName { get; set; } = string.Empty;
+
     [JsonPropertyName("current_status")]
     public int CurrentStatus { get; set; }
 

@@ -8,7 +8,6 @@
      data-poll-interval-ms="@ViewBag.PollIntervalMs"
      data-rack-count="@ViewBag.RackCount"
      data-slots-per-rack="@ViewBag.SlotsPerRack"
-     data-product-name="@ViewBag.ProductName"
      data-flag-pending-minutes="@ViewBag.FlagPendingMinutes">
     <header class="dashboard-toolbar">
         <div class="toolbar-title">Production Station Dashboard</div>
@@ -33,12 +32,31 @@
 
         <div id="connectionStatus" class="connection-status"></div>
 
+        <div class="toolbar-divider" aria-hidden="true"></div>
+
+        <div class="toolbar-filters" id="dashboardFilters" hidden>
+            <label class="toolbar-label" for="machineTypeSelect">Machine</label>
+            <select id="machineTypeSelect" class="toolbar-select" aria-label="Machine layout type">
+                <option value="">Select…</option>
+                <option value="rack">Rack</option>
+                <option value="single">Single</option>
+            </select>
+
+            <label class="toolbar-label toolbar-label--fixtures" for="fixturesPerRackSelect" id="fixturesPerRackLabel" hidden>Fixtures</label>
+            <select id="fixturesPerRackSelect" class="toolbar-select toolbar-select--fixtures" aria-label="Fixtures per rack" hidden disabled>
+                <option value="">Select…</option>
+                <option value="2">2 per rack</option>
+                <option value="3">3 per rack</option>
+            </select>
+        </div>
+
         <div class="toolbar-legend" aria-label="Status legend">
             <span class="legend-item"><span class="legend-dot status-passed"></span>Passed</span>
             <span class="legend-item"><span class="legend-dot status-running"></span>Running</span>
             <span class="legend-item"><span class="legend-dot status-failed"></span>Failed</span>
             <span class="legend-item"><span class="legend-dot status-aborted"></span>Aborted</span>
             <span class="legend-item"><span class="legend-dot status-waiting"></span>Waiting</span>
+            <span class="legend-item legend-item--flag"><span class="legend-dot legend-dot--flag"></span>Flag raised</span>
         </div>
     </header>
 

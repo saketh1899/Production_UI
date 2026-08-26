@@ -26,7 +26,6 @@ public class DashboardController : Controller
         ViewBag.PollIntervalMs = pollIntervalMs;
         ViewBag.RackCount = Math.Clamp(_configuration.GetValue("RackLayout:RackCount", 6), 1, 24);
         ViewBag.SlotsPerRack = Math.Clamp(_configuration.GetValue("RackLayout:SlotsPerRack", 3), 1, 12);
-        ViewBag.ProductName = _configuration.GetValue<string>("Dashboard:ProductName") ?? string.Empty;
         ViewBag.FlagPendingMinutes = Math.Clamp(_configuration.GetValue("Dashboard:FlagPendingDelayMinutes", 5), 0, 120);
         return View();
     }

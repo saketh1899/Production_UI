@@ -70,6 +70,55 @@
     box-shadow: 0 0 0 2px rgba(77, 171, 247, 0.25);
 }
 
+.toolbar-filters {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-shrink: 0;
+}
+
+.toolbar-select {
+    height: 34px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.25rem 1.6rem 0.25rem 0.55rem;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.1) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 16 16' fill='%23adb5bd'%3E%3Cpath d='M4.5 6l3.5 3.5L11.5 6'/%3E%3C/svg%3E") no-repeat right 0.45rem center;
+    color: #fff;
+    border-radius: 6px;
+    cursor: pointer;
+    appearance: none;
+    min-width: 88px;
+}
+
+.toolbar-select--rack {
+    min-width: 100px;
+}
+
+.toolbar-select:focus {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-color: #4dabf7;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(77, 171, 247, 0.25);
+}
+
+.toolbar-select:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.toolbar-select option {
+    color: #212529;
+    background: #fff;
+}
+
+@media (max-width: 1100px) {
+    .toolbar-filters .toolbar-label--fixtures,
+    .toolbar-select--fixtures {
+        display: none;
+    }
+}
+
 .toolbar-actions {
     display: flex;
     gap: 0.4rem;
@@ -146,12 +195,47 @@
 .legend-dot.status-aborted { background: #0d6efd; box-shadow: 0 0 4px rgba(13,110,253,0.5); }
 .legend-dot.status-waiting { background: #fd7e14; box-shadow: 0 0 4px rgba(253,126,20,0.5); }
 
+.legend-dot.legend-dot--flag {
+    background: #f1f3f5;
+    border: 1px solid #ced4da;
+    border-left: 3px solid #e03131;
+    box-shadow: none;
+}
+
+.legend-item--flag {
+    color: #adb5bd;
+}
+
 @media (max-width: 900px) {
     .toolbar-legend { display: none; }
 }
 
 @media (max-width: 768px) {
     .toolbar-title { font-size: 0.9rem; }
+}
+
+/* ── Single fixture layout ── */
+.single-board .single-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+}
+
+.single-board .station-card {
+    min-height: 96px;
+}
+
+.rack-board.view-rack-mode .rack-header::after {
+    content: ' · ' attr(data-fixtures) ' fix';
+    color: #ffc107;
+    font-weight: 600;
+}
+
+.dashboard-container[data-view-mode="single"] .rack-layout {
+    display: none;
+}
+
+.dashboard-container[data-view-mode="single"] .single-board .single-grid {
+    display: grid;
 }
 
 /* ── Grid container ── */
@@ -380,111 +464,122 @@
 
 .pass-wait-panel {
     flex-shrink: 0;
-    width: 3.1rem;
+    width: 3.25rem;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 0.2rem;
-    border-left: 2px dashed rgba(30, 126, 52, 0.35);
-    padding-left: 0.4rem;
-    margin-left: 0.2rem;
-    background: linear-gradient(90deg, transparent 0%, rgba(40, 167, 69, 0.06) 100%);
-    border-radius: 0 4px 4px 0;
+    padding: 0.38rem 0.35rem;
+    margin-left: 0.35rem;
+    border-radius: 5px;
+    background: #f1f3f5;
+    border: 1px solid #dee2e6;
+    border-left: 3px solid #868e96;
 }
 
-.pass-wait-panel--passed {
-    border-left-color: rgba(30, 126, 52, 0.35);
-    background: linear-gradient(90deg, transparent 0%, rgba(40, 167, 69, 0.06) 100%);
+.pass-wait-panel--raised {
+    background: #f8f9fa;
+    border-color: #ced4da;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
-.pass-wait-panel--failed {
-    border-left-color: rgba(220, 53, 69, 0.4);
-    background: linear-gradient(90deg, transparent 0%, rgba(220, 53, 69, 0.08) 100%);
+.pass-wait-panel--passed.pass-wait-panel--raised {
+    border-left-color: #2b8a3e;
+    background: linear-gradient(180deg, #f8faf8 0%, #f1f3f5 100%);
 }
 
-.pass-wait-panel--aborted {
-    border-left-color: rgba(13, 110, 253, 0.4);
-    background: linear-gradient(90deg, transparent 0%, rgba(13, 110, 253, 0.08) 100%);
+.pass-wait-panel--failed.pass-wait-panel--raised {
+    border-left-color: #c92a2a;
+    background: linear-gradient(180deg, #faf8f8 0%, #f1f3f5 100%);
+}
+
+.pass-wait-panel--aborted.pass-wait-panel--raised {
+    border-left-color: #1c7ed6;
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f3f5 100%);
 }
 
 .pass-flag {
     position: relative;
-    width: 1.35rem;
-    height: 1.5rem;
+    width: 1.2rem;
+    height: 1.35rem;
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    animation: flagRaise 0.45s ease-out;
+    animation: flagRaise 0.4s ease-out;
 }
 
 .pass-flag-pole {
     position: absolute;
-    left: 0;
+    left: 1px;
     bottom: 0;
     width: 2px;
     height: 100%;
-    background: linear-gradient(180deg, #868e96 0%, #495057 100%);
+    background: #495057;
     border-radius: 1px;
 }
 
 .pass-flag-banner {
     position: absolute;
-    left: 3px;
+    left: 4px;
     top: 2px;
-    width: 14px;
-    height: 9px;
-    background: linear-gradient(135deg, #ff6b6b 0%, #dc3545 100%);
-    border-radius: 0 2px 2px 0;
-    box-shadow: 0 1px 3px rgba(220, 53, 69, 0.35);
+    width: 12px;
+    height: 8px;
+    background: #e03131;
+    border-radius: 0 1px 1px 0;
     transform-origin: left center;
-    animation: flagWave 2.5s ease-in-out infinite;
+    animation: flagWave 3s ease-in-out infinite;
 }
 
 @keyframes flagRaise {
     from {
         opacity: 0;
-        transform: translateY(6px) scale(0.85);
+        transform: translateY(4px);
     }
     to {
         opacity: 1;
-        transform: translateY(0) scale(1);
+        transform: translateY(0);
     }
 }
 
 @keyframes flagWave {
-    0%, 100% { transform: rotate(-2deg); }
-    50% { transform: rotate(4deg); }
+    0%, 100% { transform: rotate(-1deg); }
+    50% { transform: rotate(2deg); }
 }
 
 .pass-wait-timer {
-    font-size: 0.8rem;
-    font-weight: 800;
+    font-size: 0.72rem;
+    font-weight: 700;
     font-family: Consolas, 'Courier New', monospace;
-    color: #155724;
-    letter-spacing: 0.02em;
+    color: #343a40;
+    letter-spacing: 0.03em;
+    line-height: 1;
+}
+
+.pass-wait-panel--passed .pass-wait-timer {
+    color: #2b8a3e;
 }
 
 .pass-wait-panel--failed .pass-wait-timer {
-    color: #721c24;
+    color: #c92a2a;
 }
 
 .pass-wait-panel--aborted .pass-wait-timer {
-    color: #084298;
+    color: #1864ab;
 }
 
 .pass-wait-label {
-    font-size: 0.48rem;
+    font-size: 0.46rem;
     font-weight: 700;
-    color: #495057;
+    color: #868e96;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
     text-align: center;
-    line-height: 1.1;
+    line-height: 1;
 }
 
 .station-card.has-pass-wait {
-    padding-right: 0.4rem;
+    padding-right: 0.35rem;
 }
 
 .station-card.status-passed.has-pass-wait {

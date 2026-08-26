@@ -198,6 +198,111 @@
     const $disconnectBtn = $('#disconnectBtn');
     const $connectionStatus = $('#connectionStatus');
     const $stationGrid = $('#stationGrid');
+    const $dashboardFilters = $('#dashboardFilters');
+    const $machineTypeSelect = $('#machineTypeSelect');
+    const $fixturesPerRackSelect = $('#fixturesPerRackSelect');
+    const $fixturesPerRackLabel = $('#fixturesPerRackLabel');
+
+    let lastFetchedStations = [];
+    let lastServerIps = [];
+    let activeRackCount = 0;
+
+    const layoutFilters = {
+        machineType: null,
+        fixturesPerRack: null
+    };
+
+    function loadSavedFilters() {
+        try {
+            const saved = JSON.parse(sessionStorage.getItem('pw-layout-filters') || 'null');
+            if (saved && typeof saved === 'object') {
+                layoutFilters.machineType = saved.machineType || null;
+                layoutFilters.fixturesPerRack = saved.fixturesPerRack || saved.layer || null;
+                if (layoutFilters.fixturesPerRack === 1) {
+                    layoutFilters.fixturesPerRack = null;
+                }
+            }
+        } catch (e) {
+            /* ignore */
+        }
+    }
+
+    function saveFilters() {
+        sessionStorage.setItem('pw-layout-filters', JSON.stringify(layoutFilters));
+    }
+
+    function getFixturesPerRack() {
+        return layoutFilters.fixturesPerRack === 2 || layoutFilters.fixturesPerRack === 3
+            ? layoutFilters.fixturesPerRack
+            : null;
+    }
+
+    function autoDetectLayoutFilters(stations) {
+        if (!layoutFilters.machineType) {
+            const minNum = getMinStationNumber(stations);
+            layoutFilters.machineType = minNum !== null ? 'rack' : 'single';
+        }
+        saveFilters();
+    }
+
+    function updateFilterBar(stations) {
+        if (!stations || stations.length === 0) {
+            $dashboardFilters.attr('hidden', true);
+            return;
+        }
+
+        $dashboardFilters.removeAttr('hidden');
+        $machineTypeSelect.val(layoutFilters.machineType || '');
+
+        const isRack = layoutFilters.machineType === 'rack';
+        if (isRack) {
+            $fixturesPerRackLabel.removeAttr('hidden');
+            $fixturesPerRackSelect.removeAttr('hidden').prop('disabled', false);
+            $fixturesPerRackSelect.val(String(layoutFilters.fixturesPerRack || ''));
+        } else {
+            $fixturesPerRackLabel.attr('hidden', true);
+            $fixturesPerRackSelect.attr('hidden', true).prop('disabled', true).val('');
+        }
+    }
+
+    function applyFiltersAndRender() {
+        if (lastFetchedStations.length === 0) {
+            return;
+        }
+        saveFilters();
+        updateFilterBar(lastFetchedStations);
+        renderStationsFull(lastFetchedStations, lastServerIps);
+        $stationGrid.attr('data-signature', buildStructureSignature(lastFetchedStations, lastServerIps));
+    }
+
+    function bindFilterEvents() {
+        $machineTypeSelect.on('change', function () {
+            layoutFilters.machineType = $(this).val() || null;
+            if (layoutFilters.machineType !== 'rack') {
+                layoutFilters.fixturesPerRack = null;
+            }
+            applyFiltersAndRender();
+        });
+
+        $fixturesPerRackSelect.on('change', function () {
+            const value = parseInt($(this).val(), 10);
+            layoutFilters.fixturesPerRack = value === 2 || value === 3 ? value : null;
+            applyFiltersAndRender();
+        });
+    }
+
+    loadSavedFilters();
+    bindFilterEvents();
+
+    function getMinStationNumber(stations) {
+        const numbers = stations
+            .map(extractStationNumber)
+            .filter(function (num) { return num !== null; });
+        if (numbers.length === 0) {
+            return null;
+        }
+        return Math.min.apply(null, numbers);
+    }
 
     function getApiField(station, snakeCase, camelCase, fallback) {
         if (station[snakeCase] !== undefined && station[snakeCase] !== null && station[snakeCase] !== '') {
@@ -229,57 +334,19 @@
         };
     }
 
-    function capitalizeWord(word) {
-        if (!word) {
-            return word;
-        }
-        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-    }
-
-    function formatSiteName(site) {
-        const beachMatch = site.match(/^(.+?)(BEACH)$/i);
-        if (beachMatch) {
-            return capitalizeWord(beachMatch[1]) + ' ' + capitalizeWord(beachMatch[2]);
-        }
-        return site.split('_').map(capitalizeWord).join(' ');
-    }
-
-    function formatLevelSegment(segment) {
-        const match = segment.match(/^([A-Za-z]+)(\d*)$/);
-        if (match) {
-            return match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase() + match[2];
-        }
-        return capitalizeWord(segment);
-    }
-
-    function formatShortProductName(rawName) {
-        if (!rawName) {
-            return rawName;
-        }
-
-        const parts = rawName.split('_').filter(Boolean);
-        if (parts.length < 2) {
-            return capitalizeWord(rawName);
-        }
-
-        const levelIndex = parts.findIndex(function (part) {
-            return /^L\d+$/i.test(part);
+    function deriveProductName(stations) {
+        const productCounts = {};
+        stations.forEach(function (rawStation) {
+            const product = getApiField(rawStation, 'product_name', 'productName', '');
+            if (product) {
+                productCounts[product] = (productCounts[product] || 0) + 1;
+            }
         });
 
-        if (levelIndex >= 1 && parts[levelIndex + 1] && /^MOBO$/i.test(parts[levelIndex + 1])) {
-            const siteLabel = formatSiteName(parts.slice(0, levelIndex).join('_'));
-            return siteLabel + '_' + formatLevelSegment(parts[levelIndex]) + '_' + capitalizeWord(parts[levelIndex + 1]);
-        }
-
-        return formatSiteName(parts[0]) + '_' + parts.slice(1, 3).map(function (part) {
-            return /^L\d+$/i.test(part) ? formatLevelSegment(part) : capitalizeWord(part);
-        }).join('_');
-    }
-
-    function deriveProductName(stations) {
-        const configured = $('.dashboard-container').data('product-name');
-        if (configured) {
-            return String(configured);
+        const productNames = Object.keys(productCounts);
+        if (productNames.length > 0) {
+            productNames.sort(function (a, b) { return productCounts[b] - productCounts[a]; });
+            return productNames[0];
         }
 
         const planCounts = {};
@@ -292,28 +359,10 @@
         const planNames = Object.keys(planCounts);
         if (planNames.length > 0) {
             planNames.sort(function (a, b) { return planCounts[b] - planCounts[a]; });
-            return formatShortProductName(planNames[0]);
+            return planNames[0];
         }
 
-        const baseCounts = {};
-        stations.forEach(function (rawStation) {
-            const name = normalizeStation(rawStation).stationName;
-            const match = name.match(/^(.+?)(?:_FIX)?_?\d+$/i);
-            const base = match
-                ? match[1].replace(/_FIX$/i, '').replace(/_+$/, '')
-                : name;
-            if (base) {
-                baseCounts[base] = (baseCounts[base] || 0) + 1;
-            }
-        });
-
-        const baseNames = Object.keys(baseCounts);
-        if (baseNames.length > 0) {
-            baseNames.sort(function (a, b) { return baseCounts[b] - baseCounts[a]; });
-            return formatShortProductName(baseNames[0]);
-        }
-
-        return 'Production';
+        return 'Unknown Product';
     }
 
     function escapeHtml(text) {
@@ -401,10 +450,8 @@
         return null;
     }
 
-    function buildRackLayout(stations) {
-        const racks = Array.from({ length: RACK_COUNT }, function () {
-            return Array(SLOTS_PER_RACK).fill(null);
-        });
+    function buildRackLayout(stations, fixturesPerRack) {
+        const slotsPerRack = fixturesPerRack === 2 || fixturesPerRack === 3 ? fixturesPerRack : 3;
         const overflow = [];
         const numbered = stations.map(function (station) {
             return { station: station, num: extractStationNumber(station) };
@@ -414,10 +461,17 @@
             .map(function (item) { return item.num; });
 
         if (validNumbers.length === 0) {
-            return { racks: racks, overflow: stations, useRackLayout: false };
+            return { racks: [], overflow: stations, useRackLayout: false, rackCount: 0, slotsPerRack: slotsPerRack };
         }
 
         const minNum = Math.min.apply(null, validNumbers);
+        const maxNum = Math.max.apply(null, validNumbers);
+        const maxOffset = maxNum - minNum;
+        const rackCount = Math.max(Math.floor(maxOffset / slotsPerRack) + 1, 1);
+
+        const racks = Array.from({ length: rackCount }, function () {
+            return Array(slotsPerRack).fill(null);
+        });
 
         numbered.forEach(function (item) {
             if (item.num === null) {
@@ -426,10 +480,10 @@
             }
 
             const offset = item.num - minNum;
-            const rackIndex = Math.floor(offset / SLOTS_PER_RACK);
-            const slotIndex = offset % SLOTS_PER_RACK;
+            const rackIndex = Math.floor(offset / slotsPerRack);
+            const slotIndex = offset % slotsPerRack;
 
-            if (rackIndex >= 0 && rackIndex < RACK_COUNT) {
+            if (rackIndex >= 0 && rackIndex < rackCount) {
                 if (racks[rackIndex][slotIndex]) {
                     overflow.push(item.station);
                 } else {
@@ -440,7 +494,14 @@
             }
         });
 
-        return { racks: racks, overflow: overflow, useRackLayout: true };
+        return {
+            racks: racks,
+            overflow: overflow,
+            useRackLayout: true,
+            rackCount: rackCount,
+            slotsPerRack: slotsPerRack,
+            minNum: minNum
+        };
     }
 
     function buildRackSlotHtml(station) {
@@ -450,24 +511,46 @@
         return '<div class="rack-slot">' + buildStationCard(station) + '</div>';
     }
 
+    function buildSingleLayoutHtml(stations, serverLabel) {
+        return `
+            <div class="rack-board single-board">
+                ${buildProductBannerHtml(stations, serverLabel)}
+                <div class="station-grid single-grid">${stations.map(buildStationCard).join('')}</div>
+            </div>`;
+    }
+
     function buildRackLayoutHtml(stations, serverLabel) {
-        const layout = buildRackLayout(stations);
-        if (!layout.useRackLayout) {
+        if (layoutFilters.machineType === 'single') {
+            return buildSingleLayoutHtml(stations, serverLabel);
+        }
+
+        const fixturesPerRack = getFixturesPerRack();
+        if (!fixturesPerRack) {
             return `
                 <div class="rack-board">
                     ${buildProductBannerHtml(stations, serverLabel)}
-                    <div class="station-grid">${stations.map(buildStationCard).join('')}</div>
+                    <div class="empty-state">
+                        <p>Select <strong>2 per rack</strong> or <strong>3 per rack</strong> from the Fixtures dropdown to arrange stations.</p>
+                    </div>
                 </div>`;
         }
 
+        const layout = buildRackLayout(stations, fixturesPerRack);
+        activeRackCount = layout.rackCount || 0;
+
+        if (!layout.useRackLayout) {
+            return buildSingleLayoutHtml(stations, serverLabel);
+        }
+
         let html = `
-            <div class="rack-board">
+            <div class="rack-board view-rack-mode">
                 ${buildProductBannerHtml(stations, serverLabel)}
-                <div class="rack-layout">`;
+                <div class="rack-layout" style="grid-template-columns: repeat(${layout.rackCount}, minmax(148px, 1fr));">`;
+
         layout.racks.forEach(function (slots, rackIndex) {
             html += `
                     <div class="rack-column">
-                        <div class="rack-header">Rack ${rackIndex + 1}</div>
+                        <div class="rack-header" data-fixtures="${fixturesPerRack}">Rack ${rackIndex + 1}</div>
                         <div class="rack-slots">
                             ${slots.map(buildRackSlotHtml).join('')}
                         </div>
@@ -478,7 +561,7 @@
         if (layout.overflow.length > 0) {
             html += `
                 <div class="rack-overflow">
-                    <div class="rack-overflow-title">Other stations</div>
+                    <div class="rack-overflow-title">Unassigned fixtures</div>
                     <div class="station-grid">${layout.overflow.map(buildStationCard).join('')}</div>
                 </div>`;
         }
@@ -521,12 +604,22 @@
         const tier = getDensityTier(sectionCount);
         const config = getDensityConfig(tier);
 
-        container.dataset.layout = 'rack';
+        container.dataset.layout = layoutFilters.machineType === 'single' ? 'single' : 'rack';
+        container.dataset.viewMode = layoutFilters.machineType || 'rack';
         container.dataset.density = tier;
         container.dataset.stationCount = String(stationCount);
         container.dataset.sectionCount = String(sectionCount);
-        container.style.setProperty('--rack-count', String(RACK_COUNT));
+
+        const visibleRackCount = layoutFilters.machineType === 'rack' ? activeRackCount : 0;
+        if (visibleRackCount > 0) {
+            container.style.setProperty('--rack-count', String(visibleRackCount));
+        }
         container.style.setProperty('--grid-gap', config.gap + 'px');
+        if (layoutFilters.machineType === 'single') {
+            container.style.setProperty('--grid-columns', '4');
+        } else {
+            container.style.setProperty('--grid-columns', String(config.maxCols));
+        }
         container.style.setProperty('--card-name-size', config.nameSize);
         container.style.setProperty('--card-badge-size', config.badgeSize);
         container.style.setProperty('--card-serial-size', config.serialSize);
@@ -633,13 +726,17 @@
 
     function renderStationsFull(stations, serverIps) {
         if (!stations || stations.length === 0) {
-            $('.dashboard-container').removeAttr('data-density data-station-count data-section-count');
+            $('.dashboard-container').removeAttr('data-density data-station-count data-section-count data-view-mode');
+            $dashboardFilters.attr('hidden', true);
             $stationGrid.html(`
                 <div class="empty-state">
                     <p>No stations found on the connected server(s).</p>
                 </div>`);
             return;
         }
+
+        autoDetectLayoutFilters(stations);
+        updateFilterBar(stations);
 
         const groups = groupStationsByServer(stations);
         const showServerSections = serverIps.length > 1 || groups.size > 1;
@@ -667,8 +764,15 @@
         $stationGrid.html(html);
 
         let maxSectionSize = stations.length;
+        if (layoutFilters.machineType === 'single') {
+            maxSectionSize = stations.length;
+        } else if (getFixturesPerRack()) {
+            maxSectionSize = stations.length;
+        }
         if (showServerSections) {
-            maxSectionSize = Math.max.apply(null, Array.from(groups.values()).map(function (s) { return s.length; }));
+            maxSectionSize = Math.max.apply(null, Array.from(groups.values()).map(function (groupStations) {
+                return groupStations.length;
+            }));
         }
         applyAdaptiveLayout(stations.length, maxSectionSize);
         applyPassWaitToStations(stations);
@@ -676,9 +780,13 @@
     }
 
     function updateStations(stations, serverIps) {
+        lastFetchedStations = Array.isArray(stations) ? stations : [];
+        lastServerIps = serverIps || [];
+
         if (!stations || stations.length === 0) {
             $stationGrid.removeAttr('data-signature');
-            $('.dashboard-container').removeAttr('data-density data-station-count data-section-count');
+            $('.dashboard-container').removeAttr('data-density data-station-count data-section-count data-view-mode');
+            $dashboardFilters.attr('hidden', true);
             $stationGrid.html(`
                 <div class="empty-state">
                     <p>No stations found on the connected server(s).</p>
@@ -700,6 +808,7 @@
                 patchStationCard($card, rawStation);
             }
         });
+        updateFilterBar(stations);
         updatePassWaitDisplays();
     }
 
@@ -721,10 +830,9 @@
                 const errors = response.errors || response.Errors || [];
                 updateStations(stations, currentServerIps);
 
-                const now = new Date().toLocaleTimeString();
                 const serverCount = currentServerIps.length;
                 const stationCount = Array.isArray(stations) ? stations.length : 0;
-                let statusMessage = serverCount + ' server(s), ' + stationCount + ' station(s) — Updated ' + now;
+                let statusMessage = serverCount + ' server(s), ' + stationCount + ' station(s)';
 
                 if (errors.length > 0 && stationCount > 0) {
                     setConnectionStatus(statusMessage, 'connected', errors);
@@ -799,12 +907,18 @@
         stopPolling();
         clearPassWaitState();
         currentServerIps = [];
+        lastFetchedStations = [];
+        lastServerIps = [];
         $connectBtn.prop('disabled', false);
         $disconnectBtn.prop('disabled', true);
         $serverIpInput.prop('disabled', false);
         setConnectionStatus('', '');
+        $dashboardFilters.attr('hidden', true);
+        $machineTypeSelect.val('');
+        $fixturesPerRackSelect.val('').attr('hidden', true).prop('disabled', true);
+        $fixturesPerRackLabel.attr('hidden', true);
         $stationGrid.removeAttr('data-signature');
-        $('.dashboard-container').removeAttr('data-density data-station-count data-section-count');
+        $('.dashboard-container').removeAttr('data-density data-station-count data-section-count data-view-mode');
         $stationGrid.html(`
             <div class="empty-state">
                 <p>Enter one server address per comma-separated entry, then click <strong>Connect</strong>.</p>
